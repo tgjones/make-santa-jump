@@ -153,7 +153,7 @@ type Track(color, bounds : Rectangle, spriteTexture, triggerKey) =
         for obstacle in obstacles do
             obstacle.Draw(spriteBatch, texture, bounds)
         santa.Draw(spriteBatch)
-        fontRenderer.DrawText(spriteBatch, 30, 30 + bounds.Y, triggerKey.ToString())
+        fontRenderer.DrawText(spriteBatch, 10, 10 + bounds.Y, triggerKey.ToString())
 
     member this.HasCollisions() =
         let santaBounds = santa.Bounds
@@ -190,7 +190,8 @@ module Track =
         let makeTrack' i =
             let trackBounds = Rectangle(0, i * (trackHeight + padding),
                                         gameBounds.Width, trackHeight)
-            Track(colors.[i], trackBounds, spriteTexture, keys.[i])
+            Track(colors.[i], trackBounds, spriteTexture,
+                  keys.[i + (keys.Length - numTracks)])
 
         List.init numTracks makeTrack'
 
@@ -198,6 +199,7 @@ module Track =
 type GameState =
     | MainMenu
     | Game
+    | GamePaused
     | GameOver
 
 type MakeSantaJumpGame() as x =
@@ -259,10 +261,16 @@ type MakeSantaJumpGame() as x =
             elif isKeyPressedSinceLastFrame Keys.D4 then startGame 4
             elif isKeyPressedSinceLastFrame Keys.D5 then startGame 5
         | Game ->
-            for track in tracks do
-                track.Update(deltaTime, isKeyPressedSinceLastFrame)
-            if List.exists (fun (t : Track) -> t.HasCollisions()) tracks then
-                gameState <- GameOver
+            if isKeyPressedSinceLastFrame Keys.P then
+                gameState <- GamePaused
+            else
+                for track in tracks do
+                    track.Update(deltaTime, isKeyPressedSinceLastFrame)
+                if List.exists (fun (t : Track) -> t.HasCollisions()) tracks then
+                    gameState <- GameOver
+        | GamePaused ->
+            if isKeyPressedSinceLastFrame Keys.P then
+                gameState <- Game
         | GameOver ->
             if isKeyPressedSinceLastFrame Keys.Space then
                 gameState <- MainMenu
@@ -284,17 +292,18 @@ type MakeSantaJumpGame() as x =
             fontRenderer.DrawText(spriteBatch, 100, 250, "3 - Ho ho HO NO")
             fontRenderer.DrawText(spriteBatch, 100, 300, "4 - I don't get paid enough for this")
             fontRenderer.DrawText(spriteBatch, 100, 350, "5 - This is why Santa drinks")
-        | Game ->
+        | Game
+        | GamePaused ->
             for track in tracks do
                 track.Draw(spriteBatch, texture, fontRenderer)
-            fontRenderer.DrawText(spriteBatch, x.GraphicsDevice.Viewport.Bounds.Right - 50, 30,
+            fontRenderer.DrawText(spriteBatch, x.GraphicsDevice.Viewport.Bounds.Right - 60, 30,
                                   avoidedObstacles.ToString())
         | GameOver ->
             for track in tracks do
                 track.Draw(spriteBatch, texture, fontRenderer)
-            fontRenderer.DrawText(spriteBatch, x.GraphicsDevice.Viewport.Bounds.Right - 50, 30,
+            fontRenderer.DrawText(spriteBatch, x.GraphicsDevice.Viewport.Bounds.Right - 60, 30,
                                   avoidedObstacles.ToString())
-            fontRenderer.DrawText(spriteBatch, 100, 50, "Game Over!")
-            fontRenderer.DrawText(spriteBatch, 100, 100, "Press Space to continue.")
+            fontRenderer.DrawText(spriteBatch, 100, 100, "Game Over!")
+            fontRenderer.DrawText(spriteBatch, 100, 150, "Press Space to continue.")
 
         spriteBatch.End()
