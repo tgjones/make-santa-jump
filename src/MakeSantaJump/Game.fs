@@ -6,177 +6,158 @@ open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
 
 
-module SantaClaus =
-    type Santa =
-        {
-            trigger : Keys;
-            y : single; 
-            dy : single; 
-            isJumping : bool;
-            timer : single;
-            spriteIndex : int
-        }
+type SpriteTexture =
+    {
+        texture : Texture2D;
+        textureData : Color array;
+        spriteWidth : int;
+        numSprites : int;
+    }
 
-    type SantaTexture =
-        {
-            texture : Texture2D;
-            textureData : Color array;
-            spriteWidth : int;
-            numSprites : int;
-        }
 
+type Santa(spriteTexture, trigger, startBottom) =
     let santaX = 100
     let santaWidth = 64
     let santaHeight = 72
+
     let gravity = 0.05f
 
     let spriteChangeTime = 80.0f
 
-    let getSantaBounds (santa : Santa) =
-        Rectangle(santaX, int(santa.y), santaWidth, santaHeight)
+    let mutable y = single(startBottom - santaHeight)
+    let mutable dy = 0.0f
+    let mutable isJumping = false
+    let mutable spriteTimer = 0.0f
+    let mutable spriteIndex = 0
 
-    let updateSanta deltaTime (isKeyPressedSinceLastFrame : Keys -> bool) (trackBounds : Rectangle) (texture : SantaTexture) santa =
-        let santa' =
-            if not santa.isJumping && isKeyPressedSinceLastFrame(santa.trigger) then
-                { santa with isJumping = true; dy = -0.7f }
-            else
-                santa
+    member this.Bounds
+        with get() = Rectangle(santaX, int(y), santaWidth, santaHeight)
 
-        if santa'.isJumping then
-            // Do "physics"
-            let santa'' = { santa' with y = santa'.y + santa'.dy * deltaTime}
-            if int(santa''.y) + santaHeight > trackBounds.Bottom then
-                { santa'' with y = single(trackBounds.Bottom - santaHeight);
-                               isJumping = false; dy = 0.0f }
+    member this.Update(deltaTime, isKeyPressedSinceLastFrame : Keys -> bool, trackBounds : Rectangle) =
+        // Should we start a jump?
+        if not isJumping && isKeyPressedSinceLastFrame(trigger) then
+            isJumping <- true
+            dy <- -0.7f
+
+        if isJumping then
+            // Physics!
+            y <- y + dy * deltaTime
+
+            let hasLanded = int(y) + santaHeight >= trackBounds.Bottom
+            if hasLanded then
+                y <- single(trackBounds.Bottom - santaHeight)
+                isJumping <- false
+                dy <- 0.0f
             else
-                { santa'' with dy = santa''.dy + gravity }
-                
+                dy <- dy + gravity
         else
             // Update sprite.
-            let timer = santa'.timer + deltaTime
-            if timer >= spriteChangeTime then
-                let newSpriteIndex = santa'.spriteIndex + 1
-                let newSpriteIndex' = if newSpriteIndex >= texture.numSprites then 0 else newSpriteIndex
-                { santa' with timer = 0.0f; spriteIndex = newSpriteIndex' }
-            else
-                { santa' with timer = timer }
+            spriteTimer <- spriteTimer + deltaTime
+            if spriteTimer >= spriteChangeTime then
+                spriteTimer <- 0.0f
+                let wrap value max =
+                    if value > max then 0 else value
+                spriteIndex <- wrap (spriteIndex + 1) (spriteTexture.numSprites - 1)
 
-    let getSantaSpriteBounds (texture : SantaTexture) i =
-        Rectangle(i * texture.spriteWidth, 0, texture.spriteWidth, texture.texture.Height)
+    member this.Draw(spriteBatch : SpriteBatch) =
+        let spriteBounds =
+            Rectangle(spriteIndex * spriteTexture.spriteWidth, 0,
+                      spriteTexture.spriteWidth, 
+                      spriteTexture.texture.Height)
+        spriteBatch.Draw(spriteTexture.texture, this.Bounds, 
+                         System.Nullable(spriteBounds),
+                         Color.White)
 
-    let drawSanta (spriteBatch : SpriteBatch) (texture : SantaTexture) (santa : Santa) =
-        let santaSpriteBounds = getSantaSpriteBounds texture santa.spriteIndex
-        spriteBatch.Draw(texture.texture, getSantaBounds santa, System.Nullable(santaSpriteBounds), Color.White)
-
-
-module Obstacles =
-    type Obstacle =
-        {
-            x : single;
-            width: int;
-            height: int
+    // Used for pixel-perfect collision detection.
+    member this.AnyNonTransparentPixels(x1, x2, y1, y2) =
+        let xOffset = spriteTexture.spriteWidth * spriteIndex
+        let pixelsInsideRegion = seq {
+            for y in y1..y2-1 do
+                for x in (x1 + xOffset)..(x2 + xOffset - 1) do
+                    let index = (y * spriteTexture.texture.Width) + x
+                    yield spriteTexture.textureData.[index]
         }
+        Seq.exists (fun c -> c <> Color.Transparent) pixelsInsideRegion
 
+
+type Obstacle(startX, width, height) =
     let speed = -0.3f
 
-    let getObstacleBounds (trackBounds : Rectangle) (obstacle : Obstacle) =
-        Rectangle(int(obstacle.x), trackBounds.Bottom - obstacle.height, obstacle.width, obstacle.height)
+    let mutable x = startX
 
-    let updateObstacle deltaTime obstacle =
-        { obstacle with x = obstacle.x + speed * deltaTime }
+    member this.Visible
+        with get() = int(x) + width > 0
 
-    let drawObstacle (spriteBatch : SpriteBatch) texture (trackBounds : Rectangle) (obstacle : Obstacle) =
-        spriteBatch.Draw(texture, getObstacleBounds trackBounds obstacle, Color.Green)
+    member this.GetBounds(trackBounds : Rectangle) =
+        Rectangle(int(x), trackBounds.Bottom - height, width, height)
+
+    member this.Update(deltaTime) =
+        x <- x + speed * deltaTime
+
+    member this.Draw(spriteBatch : SpriteBatch, texture, trackBounds : Rectangle) =
+        spriteBatch.Draw(texture, this.GetBounds(trackBounds), Color.Green)
+
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Obstacle =
+    let rng = System.Random()
 
     let removeOldObstacles (obstacles : Obstacle list) =
-        let isStillVisible obstacle = int(obstacle.x) + obstacle.width > 0
-        obstacles |> List.filter isStillVisible
-
-    let rng = System.Random()
+        obstacles |> List.filter (fun o -> o.Visible)
 
     let addNewObstacles (trackBounds : Rectangle) (obstacles : Obstacle list) =
         let isMostRecentlyAddedObstacleFullyVisible =
             match obstacles with
-            | head :: tail -> int(head.x) + head.width < trackBounds.Right
+            | head :: tail -> head.GetBounds(trackBounds).Right < trackBounds.Right
             | [] -> true
 
         if isMostRecentlyAddedObstacleFullyVisible then
             let x = trackBounds.Right + 200 + rng.Next(200)
             let width = rng.Next(20, 35)
             let height = rng.Next(30, 55)
-            let newObstacle = { x = single(x);
-                                width = width;
-                                height = height }
+            let newObstacle = Obstacle(single(x), width, height)
             newObstacle :: obstacles
         else
             obstacles
 
 
-module Tracks =
-    type Track =
-        {
-            color : Color;
-            bounds : Rectangle;
-            santa : SantaClaus.Santa;
-            obstacles : Obstacles.Obstacle list
-        }
+type Track(color, bounds : Rectangle, spriteTexture, triggerKey) =
+    let mutable obstacles = List.empty<Obstacle>
+    let santa = Santa(spriteTexture, triggerKey, bounds.Bottom)
 
-    let makeTrack color (bounds : Rectangle) triggerKey =
-        {
-            color = color;
-            bounds = bounds;
-            santa = { trigger = triggerKey;
-                      y = single(bounds.Bottom - SantaClaus.santaHeight);
-                      isJumping = false;
-                      dy = 0.0f;
-                      timer = 0.0f;
-                      spriteIndex = 0 }
-            obstacles = []
-        }
+    member this.Update(deltaTime, isKeyPressedSinceLastFrame) =
+        santa.Update(deltaTime, isKeyPressedSinceLastFrame, bounds)
+        obstacles <- obstacles
+            |> List.map (fun o -> o.Update(deltaTime); o)
+            |> Obstacle.removeOldObstacles
+            |> Obstacle.addNewObstacles bounds
 
-    let updateTrack deltaTime isKeyPressedSinceLastFrame santaTexture (track : Track) =
-        {
-            track with
-                santa = SantaClaus.updateSanta deltaTime isKeyPressedSinceLastFrame track.bounds santaTexture track.santa;
-                obstacles = track.obstacles
-                    |> List.map (Obstacles.updateObstacle deltaTime)
-                    |> Obstacles.removeOldObstacles
-                    |> Obstacles.addNewObstacles track.bounds
-        }
+    member this.Draw(spriteBatch : SpriteBatch, texture) =
+        spriteBatch.Draw(texture, bounds, color) // Track background
+        for obstacle in obstacles do
+            obstacle.Draw(spriteBatch, texture, bounds)
+        santa.Draw(spriteBatch)
 
-    let checkForCollisions (santaTexture : SantaClaus.SantaTexture) (track : Track) =
-        let santaBounds = (SantaClaus.getSantaBounds track.santa)
-        let obstacleCollidingWithSanta obstacle =
+    member this.HasCollisions() =
+        let santaBounds = santa.Bounds
+
+        let obstacleCollidingWithSanta (obstacle : Obstacle) =
             // First do simple intersection.
-            let obstacleBounds = Obstacles.getObstacleBounds track.bounds obstacle
+            let obstacleBounds = obstacle.GetBounds(bounds)
+
             if santaBounds.Intersects(obstacleBounds) then
-                // Then do pixel-perfect collision detection.
-                
+                // If the bounding rectangles overlap, then do pixel-perfect collision detection.
                 let x1 = max (obstacleBounds.X - santaBounds.X) 0
                 let x2 = min (obstacleBounds.Right - santaBounds.X) santaBounds.Width
 
                 let y1 = max (obstacleBounds.Y - santaBounds.Y) 0
                 let y2 = min (obstacleBounds.Bottom - santaBounds.Y) santaBounds.Height
 
-                let spriteIndex = track.santa.spriteIndex
-                let xOffset = santaTexture.spriteWidth * spriteIndex
-
-                let pixelsInsideObstacle = seq {
-                    for y in y1..y2-1 do
-                        for x in (x1 + xOffset)..(x2 + xOffset - 1) do
-                            let index = (y * santaTexture.texture.Width) + x
-                            yield santaTexture.textureData.[index]
-                }
-                Seq.exists (fun c -> c <> Color.Transparent) pixelsInsideObstacle
+                santa.AnyNonTransparentPixels(x1, x2, y1, y2)
             else
                 false
 
-        List.exists obstacleCollidingWithSanta track.obstacles
-
-    let drawTrack (spriteBatch : SpriteBatch) texture santaTexture (track : Track) =
-        spriteBatch.Draw(texture, track.bounds, track.color)
-        track.obstacles |> List.iter (Obstacles.drawObstacle spriteBatch texture track.bounds)
-        SantaClaus.drawSanta spriteBatch santaTexture track.santa
+        List.exists obstacleCollidingWithSanta obstacles
 
  
 type MakeSantaJumpGame() as x =
@@ -191,7 +172,6 @@ type MakeSantaJumpGame() as x =
 
     let mutable spriteBatch = Unchecked.defaultof<SpriteBatch>
     let mutable texture = Unchecked.defaultof<Texture2D>
-    let mutable santaTexture = Unchecked.defaultof<SantaClaus.SantaTexture>
     let mutable fontRenderer = Unchecked.defaultof<FontRendering.FontRenderer>
 
     let mutable tracks = []
@@ -207,13 +187,13 @@ type MakeSantaJumpGame() as x =
         texture.SetData([| Color.White |])
 
         use santaStream = System.IO.File.OpenRead("Santa.png")
-        let santaTexture' = Texture2D.FromStream(x.GraphicsDevice, santaStream)
-        let santaTextureData = Array.create<Color> (santaTexture'.Width * santaTexture'.Height) Color.Transparent
-        santaTexture'.GetData(santaTextureData)
-        santaTexture <- { texture = santaTexture';
-                          textureData = santaTextureData;
-                          spriteWidth = santaTexture'.Width / 8;
-                          numSprites = 8 }
+        let santaTexture = Texture2D.FromStream(x.GraphicsDevice, santaStream)
+        let santaTextureData = Array.create<Color> (santaTexture.Width * santaTexture.Height) Color.Transparent
+        santaTexture.GetData(santaTextureData)
+        let spriteTexture = { texture = santaTexture;
+                              textureData = santaTextureData;
+                              spriteWidth = santaTexture.Width / 8;
+                              numSprites = 8 }
 
         let numTracks = 2
         let padding = 10
@@ -227,8 +207,7 @@ type MakeSantaJumpGame() as x =
 
         let makeTrack' i =
             let trackBounds = Rectangle(0, i * (trackHeight + padding), gameBounds.Width, trackHeight)
-            Tracks.makeTrack colors.[i] trackBounds keys.[i]
-
+            Track(colors.[i], trackBounds, spriteTexture, keys.[i])
         tracks <- List.init numTracks makeTrack'
 
         use fontTextureStream = System.IO.File.OpenRead("GameFont_0.png")
@@ -246,11 +225,12 @@ type MakeSantaJumpGame() as x =
             currentKeyState.IsKeyDown(key) && lastKeyState.IsKeyUp(key)
 
         if not gameOver then
-            tracks <- tracks |> List.map (Tracks.updateTrack deltaTime isKeyPressedSinceLastFrame santaTexture)
+            for track in tracks do
+                track.Update(deltaTime, isKeyPressedSinceLastFrame)
 
         lastKeyState <- currentKeyState
 
-        if List.exists (Tracks.checkForCollisions santaTexture) tracks then
+        if List.exists (fun (t : Track) -> t.HasCollisions()) tracks then
             gameOver <- true
 
     override x.Draw (gameTime) =
@@ -258,7 +238,8 @@ type MakeSantaJumpGame() as x =
 
         spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied)
 
-        List.iter (Tracks.drawTrack spriteBatch texture santaTexture) tracks
+        for track in tracks do
+            track.Draw(spriteBatch, texture)
 
         fontRenderer.DrawText(spriteBatch, 50, 50, "Hello World!")
 
