@@ -105,9 +105,6 @@ type Obstacle(startX, width, height) =
 module Obstacle =
     let rng = System.Random()
 
-    let removeOldObstacles (obstacles : Obstacle list) =
-        obstacles |> List.filter (fun o -> o.Visible)
-
     let addNewObstacles (trackBounds : Rectangle) (obstacles : Obstacle list) =
         let isMostRecentlyAddedObstacleFullyVisible =
             match obstacles with
@@ -122,6 +119,9 @@ module Obstacle =
             newObstacle :: obstacles
         else
             obstacles
+
+    let removeOldObstacles (obstacles : Obstacle list) =
+        obstacles |> List.filter (fun o -> o.Visible)
 
 
 type Track(color, bounds : Rectangle, spriteTexture, triggerKey) =
@@ -202,12 +202,12 @@ type GameState =
     | GamePaused
     | GameOver
 
-type MakeSantaJumpGame() as x =
+type MakeSantaJumpGame() as this =
     inherit Game()
  
-    do x.Window.Title <- "Make Santa Jump"
+    do this.Window.Title <- "Make Santa Jump"
 
-    let graphics = new GraphicsDeviceManager(x)
+    let graphics = new GraphicsDeviceManager(this)
     do graphics.PreferredBackBufferWidth <- 800
     do graphics.PreferredBackBufferHeight <- 600
 
@@ -220,14 +220,14 @@ type MakeSantaJumpGame() as x =
     let mutable gameState = MainMenu
     let mutable lastKeyState = KeyboardState()
  
-    override x.LoadContent() =
-        spriteBatch <- new SpriteBatch(x.GraphicsDevice)
+    override this.LoadContent() =
+        spriteBatch <- new SpriteBatch(this.GraphicsDevice)
 
-        texture <- new Texture2D(x.GraphicsDevice, 1, 1)
+        texture <- new Texture2D(this.GraphicsDevice, 1, 1)
         texture.SetData([| Color.White |])
 
         use santaStream = System.IO.File.OpenRead("Santa.png")
-        let santaTexture = Texture2D.FromStream(x.GraphicsDevice, santaStream)
+        let santaTexture = Texture2D.FromStream(this.GraphicsDevice, santaStream)
         let santaTextureData = Array.create<Color> (santaTexture.Width * santaTexture.Height) Color.Transparent
         santaTexture.GetData(santaTextureData)
         spriteTexture <- { texture = santaTexture;
@@ -236,13 +236,11 @@ type MakeSantaJumpGame() as x =
                            numSprites = 8 }
 
         use fontTextureStream = System.IO.File.OpenRead("GameFont_0.png")
-        let fontTexture = Texture2D.FromStream(x.GraphicsDevice, fontTextureStream)
+        let fontTexture = Texture2D.FromStream(this.GraphicsDevice, fontTextureStream)
         let fontFile = FontRendering.FontLoader.Load("GameFont.fnt")
         fontRenderer <- FontRendering.FontRenderer(fontFile, fontTexture)
-
-        ()
  
-    override x.Update (gameTime) =
+    override this.Update(gameTime) =
         let currentKeyState = Keyboard.GetState()
         let deltaTime = single(gameTime.ElapsedGameTime.TotalMilliseconds)
 
@@ -252,7 +250,7 @@ type MakeSantaJumpGame() as x =
         match gameState with
         | MainMenu ->
             let startGame numTracks =
-                tracks <- Track.createTracks x.GraphicsDevice.Viewport.Bounds spriteTexture numTracks
+                tracks <- Track.createTracks this.GraphicsDevice.Viewport.Bounds spriteTexture numTracks
                 gameState <- Game
 
             if isKeyPressedSinceLastFrame Keys.D1 then startGame 1
@@ -277,8 +275,8 @@ type MakeSantaJumpGame() as x =
 
         lastKeyState <- currentKeyState
 
-    override x.Draw (gameTime) =
-        x.GraphicsDevice.Clear Color.Black
+    override this.Draw(gameTime) =
+        this.GraphicsDevice.Clear Color.Black
 
         spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied)
 
@@ -296,12 +294,12 @@ type MakeSantaJumpGame() as x =
         | GamePaused ->
             for track in tracks do
                 track.Draw(spriteBatch, texture, fontRenderer)
-            fontRenderer.DrawText(spriteBatch, x.GraphicsDevice.Viewport.Bounds.Right - 60, 30,
+            fontRenderer.DrawText(spriteBatch, this.GraphicsDevice.Viewport.Bounds.Right - 60, 30,
                                   avoidedObstacles.ToString())
         | GameOver ->
             for track in tracks do
                 track.Draw(spriteBatch, texture, fontRenderer)
-            fontRenderer.DrawText(spriteBatch, x.GraphicsDevice.Viewport.Bounds.Right - 60, 30,
+            fontRenderer.DrawText(spriteBatch, this.GraphicsDevice.Viewport.Bounds.Right - 60, 30,
                                   avoidedObstacles.ToString())
             fontRenderer.DrawText(spriteBatch, 100, 100, "Game Over!")
             fontRenderer.DrawText(spriteBatch, 100, 150, "Press Space to continue.")

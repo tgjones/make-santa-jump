@@ -1,6 +1,6 @@
 ﻿module FontRendering
 
-// Converted to F# from the original F#.
+// Converted to F# from the original C#.
 
 // ---- AngelCode BmFont XML serializer ----------------------
 // ---- By DeadlyDan @ deadlydan@gmail.com -------------------
