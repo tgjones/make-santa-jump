@@ -5,7 +5,6 @@ open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
 
-
 // Change these values to alter game balance.
 let gravity = 0.03f
 let speed = -0.3f
@@ -102,7 +101,6 @@ type Obstacle(startX, width, height) =
     member this.Draw(spriteBatch : SpriteBatch, texture, trackBounds : Rectangle) =
         spriteBatch.Draw(texture, this.GetBounds(trackBounds), Color.Green)
 
-
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Obstacle =
     let rng = System.Random()
@@ -178,7 +176,6 @@ type Track(color, bounds : Rectangle, spriteTexture, triggerKey) =
 
         List.exists obstacleCollidingWithSanta obstacles
 
-
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Track =
     let createTracks (gameBounds : Rectangle) spriteTexture numTracks =
@@ -202,7 +199,6 @@ type GameState =
     | MainMenu
     | Game
     | GameOver
-
 
 type MakeSantaJumpGame() as x =
     inherit Game()
