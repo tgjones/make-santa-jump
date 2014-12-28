@@ -28,8 +28,6 @@ type Santa(spriteTexture : SpriteTexture, trigger, startBottom) =
     let santaWidth = spriteTexture.spriteWidth
     let santaHeight = spriteTexture.texture.Height
 
-    let spriteChangeTime = 80.0f
-
     let mutable y = single(startBottom - santaHeight)
     let mutable dy = 0.0f
     let mutable isJumping = false
@@ -58,6 +56,7 @@ type Santa(spriteTexture : SpriteTexture, trigger, startBottom) =
                 dy <- dy + gravity
         else
             // Update sprite.
+            let spriteChangeTime = 80.0f
             spriteTimer <- spriteTimer + deltaTime
             if spriteTimer >= spriteChangeTime then
                 spriteTimer <- 0.0f
@@ -187,13 +186,13 @@ module Track =
         let colors = [ Color.Red; Color.Blue; Color.Purple; Color.Brown; Color.Gold ]
         let keys = [ Keys.A; Keys.S; Keys.D; Keys.F; Keys.Space ]
 
-        let makeTrack' i =
+        let makeTrack i =
             let trackBounds = Rectangle(0, i * (trackHeight + padding),
                                         gameBounds.Width, trackHeight)
             Track(colors.[i], trackBounds, spriteTexture,
                   keys.[i + (keys.Length - numTracks)])
 
-        List.init numTracks makeTrack'
+        List.init numTracks makeTrack
 
 
 type GameState =
