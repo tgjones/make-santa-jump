@@ -6,12 +6,12 @@ open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
 
 // Change these values to alter game balance.
-let gravity = 0.03f
-let speed = -0.3f
+let gravity = 0.02f
+let speed = -0.2f
 let minObstacleWidth = 20
 let maxObstacleWidth = 35
 let minObstacleHeight = 15
-let maxObstacleHeight = 40
+let maxObstacleHeight = 30
 
 
 type SpriteTexture =
